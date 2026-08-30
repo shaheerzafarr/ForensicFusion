@@ -13,6 +13,9 @@ from PIL import Image, ImageFilter
 
 from tqdm import tqdm
 
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
 from sklearn.metrics import (
     accuracy_score,
     precision_recall_fscore_support,
@@ -67,14 +70,6 @@ seed_everything(SEED)
 # ============================================================
 
 DEVICE = torch_directml.device()
-
-print()
-print("=" * 80)
-print("ARTIFACT PRODUCTION FORENSIC DETECTOR")
-print("=" * 80)
-print()
-print("Device:", DEVICE)
-print()
 
 
 # ============================================================
@@ -138,11 +133,18 @@ def discover_metadata_files():
 
     print("Searching for metadata.csv files...")
 
-    files = sorted(
-        DATASET_ROOT.rglob(
-            "metadata.csv"
-        )
-    )
+    # Fast shallow search first
+    files = sorted(DATASET_ROOT.glob("*/metadata.csv"))
+    if not files:
+        files = sorted(DATASET_ROOT.glob("*/metadata*.csv"))
+    if not files:
+        files = sorted(DATASET_ROOT.glob("*/*/metadata.csv"))
+    if not files and Path("./dataset/data").exists():
+        files = sorted(Path("./dataset/data").glob("*/metadata.csv"))
+
+    # Fallback to rglob if still not found
+    if not files:
+        files = sorted(DATASET_ROOT.rglob("metadata.csv"))
 
     print(
         f"Found {len(files)} metadata.csv files."
@@ -202,24 +204,15 @@ def normalize_label(value):
 
         return None
 
-    # Numeric labels
-    if isinstance(
-        value,
-        (int, np.integer)
-    ):
-
-        if int(value) in [0, 1]:
-
-            return int(value)
-
-    if isinstance(
-        value,
-        (float, np.floating)
-    ):
-
-        if int(value) in [0, 1]:
-
-            return int(value)
+    # Numeric labels (0 = Real, >0 = Synthetic/Fake)
+    try:
+        val_float = float(value)
+        if val_float == 0:
+            return 0
+        elif val_float > 0:
+            return 1
+    except (ValueError, TypeError):
+        pass
 
     text = str(
         value
@@ -236,6 +229,7 @@ def normalize_label(value):
         "false image",
         "non-fake",
         "non_fake",
+        "human",
     }
 
     # FAKE
@@ -291,6 +285,18 @@ def infer_label_from_path(path):
         "imagen",
         "artificial",
         "deepfake",
+        "cips",
+        "ddpm",
+        "inpaint",
+        "gcinpaint",
+        "glide",
+        "lama",
+        "mat",
+        "palette",
+        "facesyn",
+        "sfhq",
+        "taming",
+        "vqdiff",
     ]
 
     real_keywords = [
@@ -301,6 +307,10 @@ def infer_label_from_path(path):
         "human",
         "coco",
         "imagenet",
+        "celebahq",
+        "ffhq",
+        "lsun",
+        "metfaces",
     ]
 
     for part in parts:
@@ -330,62 +340,72 @@ def infer_label_from_path(path):
 
 def resolve_image_path(
     raw_path,
-    metadata_file
+    parent_str,
+    parent_name,
+    existing_files_set=None
 ):
 
-    raw_path = str(
-        raw_path
-    ).strip()
-
     if not raw_path:
+        return None
+
+    raw_str = str(raw_path).strip()
+    if not raw_str or raw_str.lower() == "nan":
+        return None
+
+    raw_norm = raw_str.replace("/", os.sep) if "/" in raw_str else raw_str
+
+    if existing_files_set is not None:
+        raw_lower = raw_norm.lower()
+        if raw_lower in existing_files_set:
+            return os.path.join(parent_str, raw_norm)
+
+        # Redundant parent folder prefix (e.g. afhq/afhq/afhq/train/dog/...)
+        pfx = parent_name.lower() + os.sep
+        if raw_lower.startswith(pfx):
+            sub = raw_norm[len(parent_name) + 1:]
+            if sub.lower() in existing_files_set:
+                return os.path.join(parent_str, sub)
+
+        # Stripped leading ./
+        stripped = raw_norm.lstrip("." + os.sep)
+        if stripped.lower() in existing_files_set:
+            return os.path.join(parent_str, stripped)
+
+        # Relative to dataset root
+        p3 = os.path.join(str(DATASET_ROOT), raw_norm)
+        if os.path.isfile(p3):
+            return p3
+
+        # Absolute path
+        if os.path.isabs(raw_norm) and os.path.isfile(raw_norm):
+            return raw_norm
 
         return None
 
-    path = Path(
-        raw_path
-    )
+    # Common case 1: relative to CSV parent directory
+    p1 = os.path.join(parent_str, raw_norm)
+    if os.path.isfile(p1):
+        return p1
 
-    candidates = []
-
-    # Absolute path
-    if path.is_absolute():
-
-        candidates.append(
-            path
-        )
-
-    # Relative to CSV
-    candidates.append(
-        metadata_file.parent / path
-    )
+    # Redundant parent folder prefix (e.g. afhq/afhq/afhq/train/dog/...)
+    if raw_norm.lower().startswith(parent_name.lower() + os.sep):
+        p2 = os.path.join(parent_str, raw_norm[len(parent_name) + 1:])
+        if os.path.isfile(p2):
+            return p2
 
     # Relative to dataset root
-    candidates.append(
-        DATASET_ROOT / path
-    )
+    p3 = os.path.join(str(DATASET_ROOT), raw_norm)
+    if os.path.isfile(p3):
+        return p3
 
-    # Sometimes metadata stores "./..."
-    candidates.append(
-        metadata_file.parent
-        / raw_path.lstrip("./")
-    )
+    # Stripped leading ./
+    p4 = os.path.join(parent_str, raw_norm.lstrip("." + os.sep))
+    if os.path.isfile(p4):
+        return p4
 
-    for candidate in candidates:
-
-        try:
-
-            candidate = (
-                candidate
-                .resolve()
-            )
-
-        except Exception:
-
-            continue
-
-        if candidate.is_file():
-
-            return candidate
+    # Absolute path
+    if os.path.isabs(raw_norm) and os.path.isfile(raw_norm):
+        return raw_norm
 
     return None
 
@@ -545,16 +565,36 @@ def process_metadata_file(
 
     unresolved_labels = 0
 
-    for row_number, row in (
-        dataframe.iterrows()
-    ):
+    img_idx = dataframe.columns.get_loc(image_column)
+    lbl_idx = dataframe.columns.get_loc(label_column) if label_column else None
+    gen_idx = dataframe.columns.get_loc(generator_column) if generator_column else None
+    cat_idx = dataframe.columns.get_loc(category_column) if category_column else None
+
+    parent_str = str(metadata_file.parent)
+    parent_name = metadata_file.parent.name
+
+    existing_files_set = None
+    if len(dataframe) > 5000:
+        existing_files_set = set()
+        p_obj = metadata_file.parent
+        for root, _, files in os.walk(p_obj):
+            rel_root = os.path.relpath(root, p_obj)
+            for f in files:
+                if rel_root == ".":
+                    existing_files_set.add(f.lower())
+                else:
+                    existing_files_set.add(os.path.join(rel_root, f).lower())
+
+    for row in dataframe.itertuples(index=False):
+
+        raw_image = row[img_idx]
 
         image_path = (
             resolve_image_path(
-                row[
-                    image_column
-                ],
-                metadata_file
+                raw_image,
+                parent_str,
+                parent_name,
+                existing_files_set
             )
         )
 
@@ -570,12 +610,10 @@ def process_metadata_file(
 
         label = None
 
-        if label_column is not None:
+        if lbl_idx is not None:
 
             label = normalize_label(
-                row[
-                    label_column
-                ]
+                row[lbl_idx]
             )
 
         # Fallback: infer from path
@@ -597,12 +635,10 @@ def process_metadata_file(
         # Generator
         # ----------------------------------------------------
 
-        if generator_column is not None:
+        if gen_idx is not None:
 
             generator = str(
-                row[
-                    generator_column
-                ]
+                row[gen_idx]
             ).strip()
 
             if (
@@ -642,12 +678,10 @@ def process_metadata_file(
         # Category
         # ----------------------------------------------------
 
-        if category_column:
+        if cat_idx is not None:
 
             category = str(
-                row[
-                    category_column
-                ]
+                row[cat_idx]
             )
 
         else:
@@ -808,51 +842,53 @@ def build_index():
     )
 
     # --------------------------------------------------------
-    # Verify image readability
+    # Verify image readability (optional)
     # --------------------------------------------------------
 
-    print()
-    print(
-        "Checking image integrity..."
-    )
-
+    verify_images = CFG.get("dataset", {}).get("verify_images", False)
     bad_images = []
 
-    for path in tqdm(
-        dataframe[
-            "image_path"
-        ],
-        desc="Checking images"
-    ):
-
-        try:
-
-            with Image.open(
-                path
-            ) as image:
-
-                image.verify()
-
-        except Exception:
-
-            bad_images.append(
-                path
-            )
-
-    if bad_images:
-
+    if verify_images:
+        print()
         print(
-            "Corrupted images:",
-            len(bad_images)
+            "Checking image integrity..."
         )
 
-        dataframe = dataframe[
-            ~dataframe[
+        for path in tqdm(
+            dataframe[
                 "image_path"
-            ].isin(
-                bad_images
+            ],
+            desc="Checking images"
+        ):
+
+            try:
+
+                with Image.open(
+                    path
+                ) as image:
+
+                    image.verify()
+
+            except Exception:
+
+                bad_images.append(
+                    path
+                )
+
+        if bad_images:
+
+            print(
+                "Corrupted images:",
+                len(bad_images)
             )
-        ]
+
+            dataframe = dataframe[
+                ~dataframe[
+                    "image_path"
+                ].isin(
+                    bad_images
+                )
+            ]
 
     # --------------------------------------------------------
     # Save index
@@ -980,13 +1016,25 @@ def get_index():
 
     if INDEX_FILE.exists():
 
-        print(
-            "Existing dataset index found."
-        )
-
-        return pd.read_csv(
-            INDEX_FILE
-        )
+        try:
+            df = pd.read_csv(
+                INDEX_FILE,
+                low_memory=False
+            )
+            required_cols = {"sample_id", "image_path", "target", "generator_id"}
+            if not df.empty and required_cols.issubset(df.columns):
+                print(
+                    "Existing dataset index found."
+                )
+                return df
+            else:
+                print(
+                    "Existing dataset index file is empty or missing required columns. Rebuilding..."
+                )
+        except Exception as error:
+            print(
+                f"Error reading existing index file ({error}). Rebuilding..."
+            )
 
     return build_index()
 
@@ -1001,13 +1049,29 @@ def create_splits(
 
     if SPLIT_FILE.exists():
 
-        print(
-            "Existing dataset split found."
-        )
-
-        return pd.read_csv(
-            SPLIT_FILE
-        )
+        try:
+            split_df = pd.read_csv(
+                SPLIT_FILE,
+                low_memory=False
+            )
+            if (
+                not split_df.empty
+                and "split" in split_df.columns
+                and len(split_df) == len(dataframe)
+                and set(split_df["split"].dropna().unique()).issubset({"train", "validation", "test"})
+            ):
+                print(
+                    "Existing dataset split found."
+                )
+                return split_df
+            else:
+                print(
+                    "Existing dataset split file is empty, invalid, or mismatched. Rebuilding splits..."
+                )
+        except Exception as error:
+            print(
+                f"Error reading existing split file ({error}). Rebuilding splits..."
+            )
 
     dataframe = dataframe.copy()
 
@@ -1247,6 +1311,7 @@ class ArtifactDataset(
             )
         )
 
+        self.image_size = image_size
         self.training = training
 
         self.highpass = (
@@ -1331,13 +1396,6 @@ class ArtifactDataset(
         self.forensic_transform = (
             transforms.Compose([
 
-                transforms.Resize(
-                    (
-                        image_size,
-                        image_size
-                    )
-                ),
-
                 transforms.ToTensor(),
 
                 transforms.Normalize(
@@ -1394,15 +1452,21 @@ class ArtifactDataset(
                 f"{error}"
             )
 
+        # Pre-resize to target dimensions for 15x faster FFT and Gaussian filtering
+        if image.size != (self.image_size, self.image_size):
+            image_small = image.resize((self.image_size, self.image_size), Image.BILINEAR)
+        else:
+            image_small = image
+
         rgb = (
             self.rgb_transform(
-                image
+                image if self.training else image_small
             )
         )
 
         highpass_image = (
             self.highpass(
-                image
+                image_small
             )
         )
 
@@ -1414,7 +1478,7 @@ class ArtifactDataset(
 
         frequency_image = (
             self.frequency(
-                image
+                image_small
             )
         )
 
@@ -1473,7 +1537,7 @@ class DINOEncoder(
 
         print()
         print(
-            "Loading DINOv3..."
+            "Loading DINO (DINOv2)..."
         )
 
         self.model = (
@@ -1957,11 +2021,11 @@ class ArtifactDetector(
         # DINO
         # ----------------------------------------------------
 
-        dino_features = (
-            self.dino(
-                rgb
-            )
-        )
+        if any(p.requires_grad for p in self.dino.parameters()):
+            dino_features = self.dino(rgb)
+        else:
+            with torch.no_grad():
+                dino_features = self.dino(rgb)
 
         dino_features = (
             self.dino_projection(
@@ -1973,11 +2037,11 @@ class ArtifactDetector(
         # CONVNEXT
         # ----------------------------------------------------
 
-        conv_features = (
-            self.convnext(
-                rgb
-            )
-        )
+        if any(p.requires_grad for p in self.convnext.parameters()):
+            conv_features = self.convnext(rgb)
+        else:
+            with torch.no_grad():
+                conv_features = self.convnext(rgb)
 
         conv_features = (
             self.conv_projection(
@@ -2205,7 +2269,8 @@ def create_optimizer(
                     "training"
                 ][
                     "weight_decay"
-                ]
+                ],
+            foreach=False
         )
     )
 
@@ -2745,6 +2810,14 @@ def log_metrics(
 
 def main():
 
+    print()
+    print("=" * 80)
+    print("ARTIFACT PRODUCTION FORENSIC DETECTOR")
+    print("=" * 80)
+    print()
+    print("Device:", DEVICE)
+    print()
+
     # ========================================================
     # STEP 1
     # DATA DISCOVERY
@@ -2983,10 +3056,34 @@ def main():
         # Train
         # ----------------------------------------------------
 
+        epoch_train_loader = train_loader
+        samples_per_epoch = CFG.get("training", {}).get("samples_per_epoch", None)
+        if (
+            samples_per_epoch is not None
+            and isinstance(samples_per_epoch, int)
+            and 0 < samples_per_epoch < len(train_dataframe)
+        ):
+            epoch_train_df = train_dataframe.sample(
+                n=samples_per_epoch,
+                random_state=SEED + epoch
+            ).reset_index(drop=True)
+            epoch_train_dataset = ArtifactDataset(
+                epoch_train_df,
+                image_size,
+                training=True
+            )
+            epoch_train_loader = DataLoader(
+                epoch_train_dataset,
+                batch_size=batch_size,
+                shuffle=True,
+                num_workers=workers,
+                pin_memory=False
+            )
+
         train_loss, global_step = (
             train_one_epoch(
                 model,
-                train_loader,
+                epoch_train_loader,
                 optimizer,
                 epoch,
                 global_step,
@@ -3004,9 +3101,33 @@ def main():
         # Validation
         # ----------------------------------------------------
 
+        epoch_val_loader = validation_loader
+        val_samples = CFG.get("training", {}).get("validation_samples", None)
+        if (
+            val_samples is not None
+            and isinstance(val_samples, int)
+            and 0 < val_samples < len(validation_dataframe)
+        ):
+            epoch_val_df = validation_dataframe.sample(
+                n=val_samples,
+                random_state=SEED
+            ).reset_index(drop=True)
+            epoch_val_dataset = ArtifactDataset(
+                epoch_val_df,
+                image_size,
+                training=False
+            )
+            epoch_val_loader = DataLoader(
+                epoch_val_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=workers,
+                pin_memory=False
+            )
+
         metrics = validate(
             model,
-            validation_loader
+            epoch_val_loader
         )
 
         print()
@@ -3122,5 +3243,8 @@ def main():
 
 
 if __name__ == "__main__":
+
+    import multiprocessing
+    multiprocessing.freeze_support()
 
     main()

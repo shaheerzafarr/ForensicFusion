@@ -1,1 +1,441 @@
-{}
+{
+  "dataset_root": "dataset\\data",
+  "metadata_files": 33,
+  "total_images": 2496738,
+  "real_images": 964989,
+  "fake_images": 1531749,
+  "generators": 33,
+  "duplicates_removed": 0,
+  "corrupted_images": 0,
+  "files": [
+    {
+      "metadata_file": "dataset\\data\\afhq\\metadata.csv",
+      "rows": 31933,
+      "valid_rows": 31933,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\big_gan\\metadata.csv",
+      "rows": 10000,
+      "valid_rows": 10000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\celebahq\\metadata.csv",
+      "rows": 30000,
+      "valid_rows": 30000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\cips\\metadata.csv",
+      "rows": 11200,
+      "valid_rows": 11200,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\coco\\metadata.csv",
+      "rows": 163846,
+      "valid_rows": 163846,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\cycle_gan\\metadata.csv",
+      "rows": 15210,
+      "valid_rows": 15210,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\ddpm\\metadata.csv",
+      "rows": 896,
+      "valid_rows": 896,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\denoising_diffusion_gan\\metadata.csv",
+      "rows": 10000,
+      "valid_rows": 10000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\diffusion_gan\\metadata.csv",
+      "rows": 15507,
+      "valid_rows": 15507,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\face_synthetics\\metadata.csv",
+      "rows": 10000,
+      "valid_rows": 10000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\ffhq\\metadata.csv",
+      "rows": 70000,
+      "valid_rows": 70000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\gansformer\\metadata.csv",
+      "rows": 10000,
+      "valid_rows": 10000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\gau_gan\\metadata.csv",
+      "rows": 7000,
+      "valid_rows": 7000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\generative_inpainting\\metadata.csv",
+      "rows": 22000,
+      "valid_rows": 22000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\glide\\metadata.csv",
+      "rows": 20903,
+      "valid_rows": 20903,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\imagenet\\metadata.csv",
+      "rows": 96788,
+      "valid_rows": 96788,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\lama\\metadata.csv",
+      "rows": 24705,
+      "valid_rows": 24705,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\landscape\\metadata.csv",
+      "rows": 4318,
+      "valid_rows": 4318,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\latent_diffusion\\metadata.csv",
+      "rows": 20000,
+      "valid_rows": 20000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\lsun\\metadata.csv",
+      "rows": 539163,
+      "valid_rows": 539163,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\mat\\metadata.csv",
+      "rows": 60000,
+      "valid_rows": 60000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\metfaces\\metadata.csv",
+      "rows": 1336,
+      "valid_rows": 1336,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\palette\\metadata.csv",
+      "rows": 6000,
+      "valid_rows": 6000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\pro_gan\\metadata.csv",
+      "rows": 40000,
+      "valid_rows": 40000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\projected_gan\\metadata.csv",
+      "rows": 12000,
+      "valid_rows": 12000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\sfhq\\metadata.csv",
+      "rows": 10000,
+      "valid_rows": 10000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\stable_diffusion\\metadata.csv",
+      "rows": 21444,
+      "valid_rows": 21444,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\star_gan\\metadata.csv",
+      "rows": 9995,
+      "valid_rows": 9995,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\stylegan1\\metadata.csv",
+      "rows": 10000,
+      "valid_rows": 10000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\stylegan2\\metadata.csv",
+      "rows": 1000000,
+      "valid_rows": 1000000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\stylegan3\\metadata.csv",
+      "rows": 97494,
+      "valid_rows": 97494,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\taming_transformer\\metadata.csv",
+      "rows": 105000,
+      "valid_rows": 105000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    },
+    {
+      "metadata_file": "dataset\\data\\vq_diffusion\\metadata.csv",
+      "rows": 10000,
+      "valid_rows": 10000,
+      "missing_images": 0,
+      "unresolved_labels": 0,
+      "columns": [
+        "filename",
+        "image_path",
+        "target",
+        "category"
+      ]
+    }
+  ]
+}

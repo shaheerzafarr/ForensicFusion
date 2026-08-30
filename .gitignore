@@ -1,1 +1,35 @@
-venv
+# Environments
+venv/
+.venv/
+env/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Large Datasets & Raw Data
+dataset/
+data/artifact_index.csv
+data/splits.csv
+data/*.csv
+
+# Keep metadata summary json files if needed, or ignore all data/
+!data/generators.json
+!data/dataset_report.json
+
+# Model Checkpoints & Weights (>100MB)
+checkpoints/*.pt
+checkpoints/*.tmp
+!checkpoints/.gitkeep
+
+# Training Logs
+logs/*.csv
+!logs/.gitkeep
+
+# Operating System & IDEs
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+*.log

@@ -1,7 +1,7 @@
 seed: 42
 
 dataset:
-  root: "./dataset/artifact"
+  root: "./dataset/data"
 
   index_file: "./data/artifact_index.csv"
   split_file: "./data/splits.csv"
@@ -10,26 +10,26 @@ dataset:
 
   image_size: 224
 
-  train_ratio: 0.90
+  train_ratio: 0.80
   validation_ratio: 0.05
-  test_ratio: 0.05
+  test_ratio: 0.15
 
   # Use every valid image.
   use_all_images: true
 
 
 hardware:
-  batch_size: 1
+  batch_size: 16
   num_workers: 0
 
-  # Accumulate gradients so effective batch is larger.
-  gradient_accumulation_steps: 8
+  # Accumulate gradients so effective batch is larger (8 * 16 = 128).
+  gradient_accumulation_steps: 16
 
 
 model:
 
   dino:
-    name: "facebook/dinov3-vits16-pretrain-lvd1689m"
+    name: "facebook/dinov2-small"
 
   convnext:
     name: "facebook/convnextv2-tiny-1k-224"
@@ -42,6 +42,12 @@ model:
 training:
 
   epochs: 20
+
+  # Set to null to train on all 1,997,405 images per epoch.
+  samples_per_epoch: null
+
+  # Set to null to validate on all 124,830 validation images.
+  validation_samples: null
 
   # First epochs train the forensic/fusion components.
   freeze_backbones_epochs: 2
