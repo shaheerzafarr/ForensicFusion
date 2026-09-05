@@ -2358,10 +2358,10 @@ def save_checkpoint(
             model.state_dict(),
 
         "optimizer":
-            optimizer.state_dict(),
+            optimizer.state_dict() if optimizer is not None else None,
 
         "scheduler":
-            scheduler.state_dict(),
+            scheduler.state_dict() if scheduler is not None else None,
 
         "epoch":
             epoch,
@@ -2499,7 +2499,8 @@ def train_one_epoch(
     epoch,
     global_step,
     best_auc,
-    scaler=None
+    scaler=None,
+    scheduler=None
 ):
 
     model.train()
@@ -3155,7 +3156,8 @@ def main():
                 optimizer,
                 epoch,
                 global_step,
-                best_auc
+                best_auc,
+                scheduler=scheduler
             )
         )
 
