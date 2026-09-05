@@ -1,1 +1,17 @@
 # ForensicFusion - Dependencies
+
+# Core Deep Learning
+torch>=2.2.0
+torchvision>=0.17.0
+transformers>=4.40.0,<4.48.0
+
+# Data Processing & Utilities
+pyyaml>=6.0
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+Pillow>=9.5.0
+tqdm>=4.65.0
+
+# Optional: For AMD Radeon GPU on Windows via DirectML
+# torch-directml
