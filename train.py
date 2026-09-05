@@ -1,4 +1,5 @@
 import os
+import sys
 import gc
 import json
 import random
@@ -28,7 +29,10 @@ import torch.nn.functional as F
 
 from torch.utils.data import Dataset, DataLoader
 
-import torch_directml
+try:
+    import torch_directml
+except ImportError:
+    torch_directml = None
 
 from torchvision import transforms
 
@@ -42,7 +46,18 @@ from transformers import (
 # CONFIG
 # ============================================================
 
-with open("config.yaml", "r") as f:
+config_path = "config.yaml"
+for i, arg in enumerate(sys.argv):
+    if arg == "--config" and i + 1 < len(sys.argv):
+        config_path = sys.argv[i + 1]
+    elif arg.startswith("--config="):
+        config_path = arg.split("=", 1)[1]
+
+if os.environ.get("CONFIG_PATH"):
+    config_path = os.environ["CONFIG_PATH"]
+
+print(f"Loading configuration from: {config_path}")
+with open(config_path, "r") as f:
     CFG = yaml.safe_load(f)
 
 
@@ -69,7 +84,16 @@ seed_everything(SEED)
 # DEVICE
 # ============================================================
 
-DEVICE = torch_directml.device()
+def get_device():
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if hasattr(torch, "backends") and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return torch.device("mps")
+    if torch_directml is not None and torch_directml.is_available():
+        return torch_directml.device()
+    return torch.device("cpu")
+
+DEVICE = get_device()
 
 
 # ============================================================
@@ -2474,10 +2498,18 @@ def train_one_epoch(
     optimizer,
     epoch,
     global_step,
-    best_auc
+    best_auc,
+    scaler=None
 ):
 
     model.train()
+
+    is_cuda = torch.cuda.is_available() and str(DEVICE).startswith("cuda")
+    if scaler is None and is_cuda:
+        try:
+            scaler = torch.amp.GradScaler("cuda", enabled=True)
+        except Exception:
+            scaler = None
 
     accumulation = (
         CFG[
@@ -2524,27 +2556,51 @@ def train_one_epoch(
         # Forward
         # ----------------------------------------------------
 
-        outputs = model(
-            rgb,
-            highpass,
-            frequency
-        )
+        if is_cuda:
+            with torch.amp.autocast("cuda", enabled=True):
+                outputs = model(
+                    rgb,
+                    highpass,
+                    frequency
+                )
 
-        loss, binary_loss, generator_loss = (
-            calculate_loss(
-                outputs,
-                labels,
-                generators
+                loss, binary_loss, generator_loss = (
+                    calculate_loss(
+                        outputs,
+                        labels,
+                        generators
+                    )
+                )
+
+                scaled_loss = (
+                    loss
+                    /
+                    accumulation
+                )
+
+            scaler.scale(scaled_loss).backward()
+        else:
+            outputs = model(
+                rgb,
+                highpass,
+                frequency
             )
-        )
 
-        scaled_loss = (
-            loss
-            /
-            accumulation
-        )
+            loss, binary_loss, generator_loss = (
+                calculate_loss(
+                    outputs,
+                    labels,
+                    generators
+                )
+            )
 
-        scaled_loss.backward()
+            scaled_loss = (
+                loss
+                /
+                accumulation
+            )
+
+            scaled_loss.backward()
 
         # ----------------------------------------------------
         # Gradient accumulation
@@ -2556,16 +2612,28 @@ def train_one_epoch(
             == 0
         ):
 
-            torch.nn.utils.clip_grad_norm_(
-                model.parameters(),
-                CFG[
-                    "training"
-                ][
-                    "gradient_clip"
-                ]
-            )
-
-            optimizer.step()
+            if is_cuda and scaler is not None:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(),
+                    CFG[
+                        "training"
+                    ][
+                        "gradient_clip"
+                    ]
+                )
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(),
+                    CFG[
+                        "training"
+                    ][
+                        "gradient_clip"
+                    ]
+                )
+                optimizer.step()
 
             optimizer.zero_grad()
 
