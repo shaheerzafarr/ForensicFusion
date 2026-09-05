@@ -2413,6 +2413,7 @@ def load_checkpoint(
         return (
             1,
             0,
+            0,
             0.0
         )
 
@@ -2434,39 +2435,62 @@ def load_checkpoint(
         ]
     )
 
-    optimizer.load_state_dict(
-        checkpoint[
-            "optimizer"
-        ]
-    )
+    if optimizer is not None and checkpoint.get("optimizer") is not None:
+        try:
+            optimizer.load_state_dict(
+                checkpoint[
+                    "optimizer"
+                ]
+            )
+        except Exception as e:
+            print("Notice: Could not load optimizer state:", e)
 
-    scheduler.load_state_dict(
-        checkpoint[
-            "scheduler"
-        ]
-    )
+    if scheduler is not None and checkpoint.get("scheduler") is not None:
+        try:
+            scheduler.load_state_dict(
+                checkpoint[
+                    "scheduler"
+                ]
+            )
+        except Exception as e:
+            print("Notice: Could not load scheduler state:", e)
 
     epoch = (
-        checkpoint[
-            "epoch"
-        ]
+        checkpoint.get(
+            "epoch",
+            1
+        )
+    )
+
+    step = (
+        checkpoint.get(
+            "step",
+            0
+        )
     )
 
     global_step = (
-        checkpoint[
-            "global_step"
-        ]
+        checkpoint.get(
+            "global_step",
+            0
+        )
     )
 
     best_auc = (
-        checkpoint[
-            "best_auc"
-        ]
+        checkpoint.get(
+            "best_auc",
+            0.0
+        )
     )
 
     print(
-        "Last epoch:",
+        "Resumed epoch:",
         epoch
+    )
+
+    print(
+        "Resumed step in epoch:",
+        step
     )
 
     print(
@@ -2483,6 +2507,7 @@ def load_checkpoint(
 
     return (
         epoch,
+        step,
         global_step,
         best_auc
     )
@@ -2499,6 +2524,8 @@ def train_one_epoch(
     epoch,
     global_step,
     best_auc,
+    start_step=0,
+    total_steps=None,
     scaler=None,
     scheduler=None
 ):
@@ -2524,41 +2551,77 @@ def train_one_epoch(
 
     running_loss = 0.0
 
+    if total_steps is None:
+        total_steps = len(loader) + start_step
+
     progress = tqdm(
         loader,
-        desc=f"Epoch {epoch}"
+        desc=f"Epoch {epoch}",
+        initial=start_step,
+        total=total_steps
     )
 
-    for step, batch in enumerate(
-        progress
-    ):
+    last_step = start_step
 
-        rgb = batch[
-            "rgb"
-        ].to(DEVICE)
+    try:
+        for i, batch in enumerate(
+            progress
+        ):
+            step = start_step + i
+            last_step = step
 
-        highpass = batch[
-            "highpass"
-        ].to(DEVICE)
+            rgb = batch[
+                "rgb"
+            ].to(DEVICE)
 
-        frequency = batch[
-            "frequency"
-        ].to(DEVICE)
+            highpass = batch[
+                "highpass"
+            ].to(DEVICE)
 
-        labels = batch[
-            "label"
-        ].to(DEVICE)
+            frequency = batch[
+                "frequency"
+            ].to(DEVICE)
 
-        generators = batch[
-            "generator"
-        ].to(DEVICE)
+            labels = batch[
+                "label"
+            ].to(DEVICE)
 
-        # ----------------------------------------------------
-        # Forward
-        # ----------------------------------------------------
+            generators = batch[
+                "generator"
+            ].to(DEVICE)
 
-        if is_cuda:
-            with torch.amp.autocast("cuda", enabled=True):
+            # ----------------------------------------------------
+            # Forward
+            # ----------------------------------------------------
+
+            if is_cuda:
+                with torch.amp.autocast("cuda", enabled=True):
+                    outputs = model(
+                        rgb,
+                        highpass,
+                        frequency
+                    )
+
+                    loss, binary_loss, generator_loss = (
+                        calculate_loss(
+                            outputs,
+                            labels,
+                            generators
+                        )
+                    )
+
+                    scaled_loss = (
+                        loss
+                        /
+                        accumulation
+                    )
+
+                if scaler is not None:
+                    scaler.scale(scaled_loss).backward()
+                else:
+                    scaled_loss.backward()
+
+            else:
                 outputs = model(
                     rgb,
                     highpass,
@@ -2579,133 +2642,131 @@ def train_one_epoch(
                     accumulation
                 )
 
-            scaler.scale(scaled_loss).backward()
-        else:
-            outputs = model(
-                rgb,
-                highpass,
-                frequency
-            )
+                scaled_loss.backward()
 
-            loss, binary_loss, generator_loss = (
-                calculate_loss(
-                    outputs,
-                    labels,
-                    generators
+            # ----------------------------------------------------
+            # Backward & Optimization
+            # ----------------------------------------------------
+
+            if (step + 1) % accumulation == 0:
+
+                if is_cuda and scaler is not None:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(),
+                        CFG[
+                            "training"
+                        ][
+                            "gradient_clip"
+                        ]
+                    )
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(),
+                        CFG[
+                            "training"
+                        ][
+                            "gradient_clip"
+                        ]
+                    )
+                    optimizer.step()
+
+                optimizer.zero_grad()
+
+            global_step += 1
+
+            running_loss += loss.item()
+
+            progress.set_postfix({
+                "loss":
+                    f"{loss.item():.4f}"
+            })
+
+            # ----------------------------------------------------
+            # Checkpoint
+            # ----------------------------------------------------
+
+            if (
+                global_step
+                %
+                CFG[
+                    "training"
+                ][
+                    "checkpoint_every_steps"
+                ]
+                == 0
+            ):
+
+                save_checkpoint(
+                    model,
+                    optimizer,
+                    scheduler,
+                    epoch,
+                    step + 1,
+                    global_step,
+                    best_auc
                 )
-            )
 
-            scaled_loss = (
-                loss
-                /
-                accumulation
-            )
-
-            scaled_loss.backward()
-
-        # ----------------------------------------------------
-        # Gradient accumulation
-        # ----------------------------------------------------
-
-        if (
-            (step + 1)
-            % accumulation
-            == 0
-        ):
-
-            if is_cuda and scaler is not None:
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(),
-                    CFG[
-                        "training"
-                    ][
-                        "gradient_clip"
-                    ]
+                print(
+                    f"\nCheckpoint saved at Step {step + 1} / Global Step {global_step}."
                 )
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(),
-                    CFG[
-                        "training"
-                    ][
-                        "gradient_clip"
-                    ]
-                )
-                optimizer.step()
 
-            optimizer.zero_grad()
-
-        global_step += 1
-
-        running_loss += (
-            loss.item()
+    except KeyboardInterrupt:
+        print(f"\n\nInterrupted! Saving checkpoint at Step {last_step + 1}...")
+        save_checkpoint(
+            model,
+            optimizer,
+            scheduler,
+            epoch,
+            last_step + 1,
+            global_step,
+            best_auc
         )
-
-        progress.set_postfix({
-            "loss":
-                f"{loss.item():.4f}"
-        })
-
-        # ----------------------------------------------------
-        # Checkpoint
-        # ----------------------------------------------------
-
-        if (
-            global_step
-            %
-            CFG[
-                "training"
-            ][
-                "checkpoint_every_steps"
-            ]
-            == 0
-        ):
-
-            save_checkpoint(
-                model,
-                optimizer,
-                scheduler,
-                epoch,
-                step,
-                global_step,
-                best_auc
-            )
-
-            print(
-                "\nCheckpoint saved."
-            )
+        print(f"Checkpoint saved to {LATEST_CHECKPOINT}.")
+        raise
 
     # --------------------------------------------------------
     # Handle leftover gradients
     # --------------------------------------------------------
 
     if (
-        len(loader)
+        (len(loader) + start_step)
         %
         accumulation
         != 0
     ):
 
-        torch.nn.utils.clip_grad_norm_(
-            model.parameters(),
-            CFG[
-                "training"
-            ][
-                "gradient_clip"
-            ]
-        )
-
-        optimizer.step()
+        if is_cuda and scaler is not None:
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(
+                model.parameters(),
+                CFG[
+                    "training"
+                ][
+                    "gradient_clip"
+                ]
+            )
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            torch.nn.utils.clip_grad_norm_(
+                model.parameters(),
+                CFG[
+                    "training"
+                ][
+                    "gradient_clip"
+                ]
+            )
+            optimizer.step()
 
         optimizer.zero_grad()
 
     return (
         running_loss
         /
-        len(loader),
+        max(1, len(loader)),
 
         global_step
     )
@@ -3069,13 +3130,15 @@ def main():
     # RESUME
     # ========================================================
 
-    start_epoch, global_step, best_auc = (
+    start_epoch, start_step, global_step, best_auc = (
         load_checkpoint(
             model,
             optimizer,
             scheduler
         )
     )
+
+    current_start_step = start_step
 
     # ========================================================
     # TRAINING LOOP
@@ -3149,17 +3212,47 @@ def main():
                 pin_memory=False
             )
 
-        train_loss, global_step = (
-            train_one_epoch(
-                model,
-                epoch_train_loader,
-                optimizer,
-                epoch,
-                global_step,
-                best_auc,
-                scheduler=scheduler
+        total_epoch_steps = len(epoch_train_loader)
+
+        if current_start_step > 0:
+            if current_start_step < total_epoch_steps:
+                print(f"\nResuming Epoch {epoch} at batch {current_start_step} / {total_epoch_steps}...")
+                dataset = epoch_train_loader.dataset
+                g = torch.Generator()
+                g.manual_seed(SEED + epoch)
+                perm = torch.randperm(len(dataset), generator=g).tolist()
+                skip_samples = current_start_step * batch_size
+                remaining_indices = perm[skip_samples:]
+                from torch.utils.data import Subset
+                remaining_dataset = Subset(dataset, remaining_indices)
+                epoch_train_loader = DataLoader(
+                    remaining_dataset,
+                    batch_size=batch_size,
+                    shuffle=False,
+                    num_workers=workers,
+                    pin_memory=False
+                )
+            else:
+                current_start_step = 0
+
+        try:
+            train_loss, global_step = (
+                train_one_epoch(
+                    model,
+                    epoch_train_loader,
+                    optimizer,
+                    epoch,
+                    global_step,
+                    best_auc,
+                    start_step=current_start_step,
+                    total_steps=total_epoch_steps,
+                    scheduler=scheduler
+                )
             )
-        )
+            current_start_step = 0
+        except KeyboardInterrupt:
+            print("\nTraining session paused. Your progress is saved in checkpoints/latest.pt.")
+            return
 
         print()
         print(
