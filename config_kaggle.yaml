@@ -2,7 +2,7 @@ seed: 42
 
 dataset:
   # Mounted path for awsaf49/artifact-dataset on Kaggle
-  root: "/kaggle/input/artifact-dataset"
+  root: "/kaggle/input/datasets/awsaf49/artifact-dataset"
 
   index_file: "/kaggle/working/data/artifact_index.csv"
   split_file: "/kaggle/working/data/splits.csv"
