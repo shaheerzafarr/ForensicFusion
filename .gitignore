@@ -8,13 +8,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Large Datasets & Raw Data
+# Large Datasets & Generated Index Files (>100MB)
 dataset/
-data/artifact_index.csv
-data/splits.csv
 data/*.csv
-
-# Keep metadata summary json files if needed, or ignore all data/
+data/splits.csv
+data/artifact_index.csv
 !data/generators.json
 !data/dataset_report.json
 
