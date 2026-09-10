@@ -2270,14 +2270,16 @@ def load_checkpoint(
     if target_ckpt is None and LATEST_CHECKPOINT.exists():
         target_ckpt = LATEST_CHECKPOINT
 
-    # Kaggle auto-discovery: check /kaggle/input for any previous checkpoint runs attached as inputs
+    # Kaggle auto-discovery: check /kaggle/input for previous checkpoint runs attached as inputs
     if target_ckpt is None and Path("/kaggle/input").exists():
-        candidates = sorted(
-            list(Path("/kaggle/input").rglob("latest.pt")) +
-            list(Path("/kaggle/input").rglob("best.pt"))
-        )
+        candidates = []
+        for p in Path("/kaggle/input").glob("*"):
+            if "artifact-dataset" in p.name.lower():
+                continue
+            for pattern in ["latest.pt", "best.pt", "checkpoints/latest.pt", "checkpoints/best.pt", "*/latest.pt", "*/best.pt"]:
+                candidates.extend(p.glob(pattern))
         if candidates:
-            target_ckpt = candidates[0]
+            target_ckpt = sorted(candidates)[0]
             print(f"Auto-detected existing checkpoint from Kaggle input: {target_ckpt}")
 
     if target_ckpt is None or not target_ckpt.exists():
