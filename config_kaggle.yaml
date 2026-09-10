@@ -19,7 +19,7 @@ dataset:
 
 hardware:
   # Kaggle NVIDIA T4 (16GB VRAM) optimized settings
-  batch_size: 16
+  batch_size: 32
   num_workers: 2
   gradient_accumulation_steps: 4
 

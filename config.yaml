@@ -19,7 +19,7 @@ dataset:
 
 
 hardware:
-  batch_size: 16
+  batch_size: 32
   num_workers: 0
 
   # Accumulate gradients so effective batch is larger (8 * 16 = 128).
