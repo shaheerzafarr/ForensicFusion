@@ -115,6 +115,8 @@ def get_device():
     return torch.device("cpu")
 
 DEVICE = get_device()
+if str(DEVICE).startswith("cuda"):
+    torch.backends.cudnn.benchmark = True
 
 
 # ============================================================
@@ -2978,12 +2980,18 @@ def main():
         ]
     )
 
+    pin_mem = str(DEVICE).startswith("cuda")
+    persistent = (workers > 0)
+    prefetch = 2 if workers > 0 else None
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=workers,
-        pin_memory=False
+        pin_memory=pin_mem,
+        persistent_workers=persistent,
+        prefetch_factor=prefetch
     )
 
     validation_loader = DataLoader(
@@ -2991,7 +2999,9 @@ def main():
         batch_size=batch_size,
         shuffle=False,
         num_workers=workers,
-        pin_memory=False
+        pin_memory=pin_mem,
+        persistent_workers=persistent,
+        prefetch_factor=prefetch
     )
 
     # ========================================================
@@ -3124,7 +3134,9 @@ def main():
                 batch_size=batch_size,
                 shuffle=True,
                 num_workers=workers,
-                pin_memory=False
+                pin_memory=pin_mem,
+                persistent_workers=persistent,
+                prefetch_factor=prefetch
             )
 
         total_epoch_steps = len(epoch_train_loader)
@@ -3145,7 +3157,9 @@ def main():
                     batch_size=batch_size,
                     shuffle=False,
                     num_workers=workers,
-                    pin_memory=False
+                    pin_memory=pin_mem,
+                    persistent_workers=persistent,
+                    prefetch_factor=prefetch
                 )
             else:
                 current_start_step = 0

@@ -19,10 +19,10 @@ dataset:
   use_all_images: true
 
 hardware:
-  # Google Colab T4 / A100 settings
-  batch_size: 32
-  num_workers: 0
-  gradient_accumulation_steps: 4
+  # Google Colab T4 (15GB VRAM) optimized settings
+  batch_size: 64
+  num_workers: 2
+  gradient_accumulation_steps: 2
   device: "cuda"
 
 model:
