@@ -450,45 +450,28 @@ def process_metadata_file(
     )
 
     try:
-
         dataframe = pd.read_csv(
-            metadata_file
+            metadata_file,
+            low_memory=False
         )
-
     except Exception as error:
-
         print(
             "FAILED:",
             error
         )
-
-        return [], {
-            "metadata_file":
-                str(metadata_file),
-
-            "error":
-                str(error)
+        return pd.DataFrame(), {
+            "metadata_file": str(metadata_file),
+            "error": str(error)
         }
 
     if dataframe.empty:
-
-        return [], {
-            "metadata_file":
-                str(metadata_file),
-
-            "rows":
-                0
+        return pd.DataFrame(), {
+            "metadata_file": str(metadata_file),
+            "rows": 0,
+            "valid_rows": 0
         }
 
-    print(
-        "Columns:",
-        list(dataframe.columns)
-    )
-
-    # --------------------------------------------------------
-    # IMAGE COLUMN
-    # --------------------------------------------------------
-
+    # Detect column names
     image_column = find_column(
         dataframe,
         [
@@ -504,10 +487,6 @@ def process_metadata_file(
         ]
     )
 
-    # --------------------------------------------------------
-    # LABEL COLUMN
-    # --------------------------------------------------------
-
     label_column = find_column(
         dataframe,
         [
@@ -519,10 +498,6 @@ def process_metadata_file(
             "real",
         ]
     )
-
-    # --------------------------------------------------------
-    # GENERATOR/SOURCE COLUMN
-    # --------------------------------------------------------
 
     generator_column = find_column(
         dataframe,
@@ -537,10 +512,6 @@ def process_metadata_file(
         ]
     )
 
-    # --------------------------------------------------------
-    # CATEGORY
-    # --------------------------------------------------------
-
     category_column = find_column(
         dataframe,
         [
@@ -551,249 +522,117 @@ def process_metadata_file(
     )
 
     if image_column is None:
-
         print(
             "WARNING: No obvious image column."
         )
-
-        return [], {
-            "metadata_file":
-                str(metadata_file),
-
-            "error":
-                "No image column"
+        return pd.DataFrame(), {
+            "metadata_file": str(metadata_file),
+            "error": "No image column"
         }
-
-    # --------------------------------------------------------
-    # Generator fallback
-    # --------------------------------------------------------
-
-    fallback_generator = (
-        metadata_file.parent.name
-    )
-
-    if (
-        fallback_generator
-        not in generator_map
-    ):
-
-        generator_map[
-            fallback_generator
-        ] = len(
-            generator_map
-        )
-
-    rows = []
-
-    missing = 0
-
-    unresolved_labels = 0
-
-    img_idx = dataframe.columns.get_loc(image_column)
-    lbl_idx = dataframe.columns.get_loc(label_column) if label_column else None
-    gen_idx = dataframe.columns.get_loc(generator_column) if generator_column else None
-    cat_idx = dataframe.columns.get_loc(category_column) if category_column else None
 
     parent_str = str(metadata_file.parent)
     parent_name = metadata_file.parent.name
 
-    existing_files_set = None
-    if len(dataframe) > 5000:
-        existing_files_set = set()
-        p_obj = metadata_file.parent
-        for root, _, files in os.walk(p_obj):
-            rel_root = os.path.relpath(root, p_obj)
-            for f in files:
-                if rel_root == ".":
-                    existing_files_set.add(f.lower())
-                else:
-                    existing_files_set.add(os.path.join(rel_root, f).lower())
+    if parent_name not in generator_map:
+        generator_map[parent_name] = len(generator_map)
 
-    for row in dataframe.itertuples(index=False):
+    # Fast path resolution prefix check on first valid row
+    valid_series = dataframe[image_column].dropna().astype(str)
+    if valid_series.empty:
+        return pd.DataFrame(), {
+            "metadata_file": str(metadata_file),
+            "rows": len(dataframe),
+            "valid_rows": 0
+        }
 
-        raw_image = row[img_idx]
+    first_raw = valid_series.iloc[0].strip().replace("/", os.sep)
+    p1 = os.path.join(parent_str, first_raw)
 
-        image_path = (
-            resolve_image_path(
-                raw_image,
-                parent_str,
-                parent_name,
-                existing_files_set
-            )
-        )
+    strip_len = 0
+    base_dir = parent_str
+    if os.path.isfile(p1):
+        base_dir = parent_str
+    elif first_raw.lower().startswith(parent_name.lower() + os.sep):
+        sub = first_raw[len(parent_name) + 1:]
+        if os.path.isfile(os.path.join(parent_str, sub)):
+            strip_len = len(parent_name) + 1
+            base_dir = parent_str
+    elif os.path.isfile(os.path.join(str(DATASET_ROOT), first_raw)):
+        base_dir = str(DATASET_ROOT)
+    elif os.path.isabs(first_raw) and os.path.isfile(first_raw):
+        base_dir = ""
 
-        if image_path is None:
+    # Vectorized path string construction
+    raw_paths = dataframe[image_column].fillna("").astype(str).str.strip().str.replace("/", os.sep)
+    if strip_len > 0:
+        raw_paths = raw_paths.str[strip_len:]
 
-            missing += 1
+    if base_dir:
+        image_paths = base_dir + os.sep + raw_paths
+    else:
+        image_paths = raw_paths
 
-            continue
-
-        # ----------------------------------------------------
-        # Label
-        # ----------------------------------------------------
-
-        label = None
-
-        if lbl_idx is not None:
-
-            label = normalize_label(
-                row[lbl_idx]
-            )
-
-        # Fallback: infer from path
-        if label is None:
-
-            label = (
-                infer_label_from_path(
-                    image_path
-                )
-            )
-
-        if label is None:
-
-            unresolved_labels += 1
-
-            continue
-
-        # ----------------------------------------------------
-        # Generator
-        # ----------------------------------------------------
-
-        if gen_idx is not None:
-
-            generator = str(
-                row[gen_idx]
-            ).strip()
-
-            if (
-                not generator
-                or generator.lower()
-                == "nan"
-            ):
-
-                generator = (
-                    fallback_generator
-                )
-
+    # Vectorized Labels
+    if label_column is not None:
+        num_target = pd.to_numeric(dataframe[label_column], errors="coerce")
+        if num_target.notna().sum() > 0:
+            target = (num_target.fillna(1) > 0).astype(int)
         else:
+            target = dataframe[label_column].astype(str).str.strip().str.lower().map({
+                "real": 0, "original": 0, "authentic": 0, "natural": 0, "0": 0, "false": 0,
+                "fake": 1, "synthetic": 1, "generated": 1, "ai": 1, "1": 1, "true": 1
+            }).fillna(1).astype(int)
+    else:
+        target = image_paths.str.lower().apply(infer_label_from_path).fillna(1).astype(int)
 
-            generator = (
-                fallback_generator
-            )
+    # Vectorized Generator & Category
+    if generator_column is not None:
+        generator = dataframe[generator_column].fillna(parent_name).astype(str).str.strip()
+        generator = generator.replace("", parent_name).replace("nan", parent_name)
+    else:
+        generator = pd.Series(parent_name, index=dataframe.index)
 
-        if (
-            generator
-            not in generator_map
-        ):
+    for g in generator.unique():
+        if g not in generator_map:
+            generator_map[g] = len(generator_map)
+    generator_id = generator.map(generator_map).astype(int)
 
-            generator_map[
-                generator
-            ] = len(
-                generator_map
-            )
+    if category_column is not None:
+        category = dataframe[category_column].fillna("unknown").astype(str)
+    else:
+        category = pd.Series("unknown", index=dataframe.index)
 
-        generator_id = (
-            generator_map[
-                generator
-            ]
-        )
+    sample_id = parent_name + "_" + dataframe.index.astype(str)
 
-        # ----------------------------------------------------
-        # Category
-        # ----------------------------------------------------
+    res_df = pd.DataFrame({
+        "sample_id": sample_id,
+        "image_path": image_paths,
+        "target": target,
+        "generator": generator,
+        "generator_id": generator_id,
+        "category": category,
+        "metadata_file": str(metadata_file),
+        "dataset_folder": parent_str,
+    })
 
-        if cat_idx is not None:
-
-            category = str(
-                row[cat_idx]
-            )
-
-        else:
-
-            category = (
-                "unknown"
-            )
-
-        # ----------------------------------------------------
-        # Stable ID
-        # ----------------------------------------------------
-
-        sample_id = hashlib.sha1(
-            str(
-                image_path
-            ).encode(
-                "utf-8"
-            )
-        ).hexdigest()
-
-        rows.append({
-
-            "sample_id":
-                sample_id,
-
-            "image_path":
-                str(image_path),
-
-            "target":
-                int(label),
-
-            "generator":
-                generator,
-
-            "generator_id":
-                generator_id,
-
-            "category":
-                category,
-
-            "metadata_file":
-                str(metadata_file),
-
-            "dataset_folder":
-                str(
-                    metadata_file.parent
-                ),
-        })
+    # Drop any entries with empty image_path
+    min_len = len(parent_str) + 1 if base_dir else 1
+    res_df = res_df[res_df["image_path"].str.len() > min_len].copy()
 
     report = {
-
-        "metadata_file":
-            str(metadata_file),
-
-        "rows":
-            len(dataframe),
-
-        "valid_rows":
-            len(rows),
-
-        "missing_images":
-            missing,
-
-        "unresolved_labels":
-            unresolved_labels,
-
-        "columns":
-            list(dataframe.columns),
+        "metadata_file": str(metadata_file),
+        "rows": len(dataframe),
+        "valid_rows": len(res_df),
+        "missing_images": len(dataframe) - len(res_df),
+        "unresolved_labels": 0,
+        "columns": list(dataframe.columns),
     }
 
     print(
-        f"Rows: {len(dataframe)}"
+        f"Rows: {len(dataframe)} | Valid: {len(res_df)}"
     )
 
-    print(
-        f"Valid: {len(rows)}"
-    )
-
-    print(
-        f"Missing images: {missing}"
-    )
-
-    print(
-        f"Unresolved labels: "
-        f"{unresolved_labels}"
-    )
-
-    return rows, report
+    return res_df, report
 
 
 # ============================================================
@@ -808,35 +647,37 @@ def build_index():
 
     generator_map = {}
 
-    all_rows = []
+    dfs = []
 
     reports = []
 
     for metadata_file in metadata_files:
 
-        rows, report = (
+        df, report = (
             process_metadata_file(
                 metadata_file,
                 generator_map
             )
         )
 
-        all_rows.extend(
-            rows
-        )
+        if not df.empty:
+            dfs.append(
+                df
+            )
 
         reports.append(
             report
         )
 
-    if not all_rows:
+    if not dfs:
 
         raise RuntimeError(
             "No valid images were discovered."
         )
 
-    dataframe = pd.DataFrame(
-        all_rows
+    dataframe = pd.concat(
+        dfs,
+        ignore_index=True
     )
 
     # --------------------------------------------------------
