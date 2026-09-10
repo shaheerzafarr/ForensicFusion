@@ -1,8 +1,8 @@
 seed: 42
 
 dataset:
-  # Dataset stored permanently in your 4TB Google Drive
-  root: "/content/drive/MyDrive/ForensicFusion/dataset"
+  # Local high-speed disk path where dataset is unzipped
+  root: "./dataset/data"
 
   # All metadata, indexes, and splits stored permanently in Google Drive
   index_file: "/content/drive/MyDrive/ForensicFusion/data/artifact_index.csv"

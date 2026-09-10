@@ -48,6 +48,7 @@ from transformers import (
 
 config_path = "config.yaml"
 resume_checkpoint_path = None
+root_override = None
 
 for i, arg in enumerate(sys.argv):
     if arg == "--config" and i + 1 < len(sys.argv):
@@ -58,6 +59,10 @@ for i, arg in enumerate(sys.argv):
         resume_checkpoint_path = sys.argv[i + 1]
     elif arg.startswith("--resume="):
         resume_checkpoint_path = arg.split("=", 1)[1]
+    elif arg == "--root" and i + 1 < len(sys.argv):
+        root_override = sys.argv[i + 1]
+    elif arg.startswith("--root="):
+        root_override = arg.split("=", 1)[1]
 
 if os.environ.get("CONFIG_PATH"):
     config_path = os.environ["CONFIG_PATH"]
@@ -65,9 +70,16 @@ if os.environ.get("CONFIG_PATH"):
 if os.environ.get("RESUME_PATH"):
     resume_checkpoint_path = os.environ["RESUME_PATH"]
 
+if os.environ.get("DATASET_ROOT"):
+    root_override = os.environ["DATASET_ROOT"]
+
 print(f"Loading configuration from: {config_path}")
 with open(config_path, "r") as f:
     CFG = yaml.safe_load(f)
+
+if root_override:
+    CFG["dataset"]["root"] = root_override
+    print(f"Dataset root overridden to: {root_override}")
 
 
 SEED = CFG["seed"]
@@ -172,8 +184,30 @@ def discover_metadata_files():
         files = sorted(DATASET_ROOT.glob("*/metadata*.csv"))
     if not files:
         files = sorted(DATASET_ROOT.glob("*/*/metadata.csv"))
-    if not files and Path("./dataset/data").exists():
-        files = sorted(Path("./dataset/data").glob("*/metadata.csv"))
+
+    # If configured root has few files (< 30) while dataset is unzipped on local disk:
+    if len(files) < 30:
+        disk_candidates = [
+            Path("/content/dataset/data"),
+            Path("/content/dataset"),
+            Path("./dataset/data"),
+            Path("./dataset"),
+            Path("/content/ForensicFusion/dataset/data"),
+            Path("/content/ForensicFusion/dataset"),
+            Path("/content/data"),
+        ]
+        for candidate in disk_candidates:
+            try:
+                if candidate.exists() and candidate.resolve() != DATASET_ROOT.resolve():
+                    cand_files = sorted(candidate.glob("*/metadata.csv"))
+                    if not cand_files:
+                        cand_files = sorted(candidate.glob("*/*/metadata.csv"))
+                    if len(cand_files) > len(files):
+                        print(f"Auto-detected full unzipped dataset with {len(cand_files)} folders on local disk: {candidate}")
+                        files = cand_files
+                        break
+            except Exception:
+                pass
 
     # Fallback to rglob if still not found
     if not files:
@@ -897,10 +931,16 @@ def get_index():
             )
             required_cols = {"sample_id", "image_path", "target", "generator_id"}
             if not df.empty and required_cols.issubset(df.columns):
-                print(
-                    "Existing dataset index found."
-                )
-                return df
+                sample_path = str(df["image_path"].iloc[0])
+                if os.path.exists(sample_path):
+                    print(
+                        "Existing dataset index found."
+                    )
+                    return df
+                else:
+                    print(
+                        f"Existing index points to paths that do not exist ({sample_path}). Rebuilding..."
+                    )
             else:
                 print(
                     "Existing dataset index file is empty or missing required columns. Rebuilding..."
