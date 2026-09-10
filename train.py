@@ -1310,21 +1310,21 @@ class ArtifactDataset(
             "image_path"
         ]
 
-        try:
-
-            image = Image.open(
-                image_path
-            ).convert(
-                "RGB"
-            )
-
-        except Exception as error:
-
-            raise RuntimeError(
-                f"Could not load:\n"
-                f"{image_path}\n"
-                f"{error}"
-            )
+        image = None
+        for attempt in range(3):
+            try:
+                image = Image.open(
+                    image_path
+                ).convert(
+                    "RGB"
+                )
+                break
+            except Exception:
+                if attempt == 2:
+                    # Fallback to another random sample to never crash training on I/O error
+                    fallback_idx = random.randint(0, len(self.dataframe) - 1)
+                    return self.__getitem__(fallback_idx)
+                time.sleep(0.05)
 
         # Pre-resize to target dimensions for 15x faster FFT and Gaussian filtering
         if image.size != (self.image_size, self.image_size):
