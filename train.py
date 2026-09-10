@@ -47,14 +47,23 @@ from transformers import (
 # ============================================================
 
 config_path = "config.yaml"
+resume_checkpoint_path = None
+
 for i, arg in enumerate(sys.argv):
     if arg == "--config" and i + 1 < len(sys.argv):
         config_path = sys.argv[i + 1]
     elif arg.startswith("--config="):
         config_path = arg.split("=", 1)[1]
+    elif arg == "--resume" and i + 1 < len(sys.argv):
+        resume_checkpoint_path = sys.argv[i + 1]
+    elif arg.startswith("--resume="):
+        resume_checkpoint_path = arg.split("=", 1)[1]
 
 if os.environ.get("CONFIG_PATH"):
     config_path = os.environ["CONFIG_PATH"]
+
+if os.environ.get("RESUME_PATH"):
+    resume_checkpoint_path = os.environ["RESUME_PATH"]
 
 print(f"Loading configuration from: {config_path}")
 with open(config_path, "r") as f:
@@ -2246,10 +2255,32 @@ def save_checkpoint(
 def load_checkpoint(
     model,
     optimizer,
-    scheduler
+    scheduler,
+    resume_path=None
 ):
 
-    if not LATEST_CHECKPOINT.exists():
+    target_ckpt = None
+    if resume_path:
+        p = Path(resume_path)
+        if p.exists():
+            target_ckpt = p
+        else:
+            print(f"Warning: Specified --resume checkpoint not found: {resume_path}")
+
+    if target_ckpt is None and LATEST_CHECKPOINT.exists():
+        target_ckpt = LATEST_CHECKPOINT
+
+    # Kaggle auto-discovery: check /kaggle/input for any previous checkpoint runs attached as inputs
+    if target_ckpt is None and Path("/kaggle/input").exists():
+        candidates = sorted(
+            list(Path("/kaggle/input").rglob("latest.pt")) +
+            list(Path("/kaggle/input").rglob("best.pt"))
+        )
+        if candidates:
+            target_ckpt = candidates[0]
+            print(f"Auto-detected existing checkpoint from Kaggle input: {target_ckpt}")
+
+    if target_ckpt is None or not target_ckpt.exists():
 
         return (
             1,
@@ -2261,12 +2292,12 @@ def load_checkpoint(
     print()
     print("=" * 80)
     print(
-        "RESUMING FROM CHECKPOINT"
+        f"RESUMING FROM CHECKPOINT: {target_ckpt}"
     )
     print("=" * 80)
 
     checkpoint = torch.load(
-        LATEST_CHECKPOINT,
+        target_ckpt,
         map_location="cpu"
     )
 
@@ -2975,7 +3006,8 @@ def main():
         load_checkpoint(
             model,
             optimizer,
-            scheduler
+            scheduler,
+            resume_checkpoint_path
         )
     )
 
