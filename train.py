@@ -2357,10 +2357,12 @@ def load_checkpoint(
     if target_ckpt is None and LATEST_CHECKPOINT.exists():
         target_ckpt = LATEST_CHECKPOINT
 
-    # Google Drive auto-discovery: check common Drive locations if LATEST_CHECKPOINT is not found
-    if target_ckpt is None and Path("/content/drive/MyDrive").exists():
+    # Google Drive auto-discovery: check common Drive locations and shortcut targets
+    if Path("/content/drive").exists():
         drive_candidates = []
         search_dirs = [
+            Path("/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC"),
+            Path("/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC/checkpoints"),
             Path("/content/drive/MyDrive/ForensicFusion/checkpoints"),
             Path("/content/drive/MyDrive/ForensicFusion"),
             Path("/content/drive/MyDrive/ForensicFusion_Models"),
@@ -2368,18 +2370,53 @@ def load_checkpoint(
             Path("/content/drive/MyDrive/shared-with-me/ForensicFusion"),
             Path("./checkpoints"),
         ]
+        shortcut_root = Path("/content/drive/.shortcut-targets-by-id")
+        if shortcut_root.exists():
+            try:
+                for target in shortcut_root.iterdir():
+                    if target.is_dir() and target not in search_dirs:
+                        search_dirs.append(target)
+                        search_dirs.append(target / "checkpoints")
+            except Exception:
+                pass
+
         for s_dir in search_dirs:
             if s_dir.exists():
-                for pattern in ["latest.pt", "best.pt", "checkpoints/latest.pt", "checkpoints/best.pt"]:
-                    found = list(s_dir.glob(pattern))
-                    drive_candidates.extend(found)
+                for pattern in ["latest.pt", "best.pt", "latest_step_*.pt", "*.pt"]:
+                    try:
+                        drive_candidates.extend(s_dir.glob(pattern))
+                    except Exception:
+                        pass
+
         unique_candidates = []
         for c in drive_candidates:
-            if c not in unique_candidates and c.exists() and c.is_file():
+            if c not in unique_candidates and c.exists() and c.is_file() and not c.name.endswith(".tmp"):
                 unique_candidates.append(c)
+
         if unique_candidates:
-            target_ckpt = unique_candidates[0]
-            print(f"Auto-detected existing checkpoint from Google Drive: {target_ckpt}")
+            current_step = -1
+            if target_ckpt is not None and target_ckpt.exists():
+                try:
+                    meta = torch.load(target_ckpt, map_location="cpu")
+                    current_step = meta.get("global_step", meta.get("step", 0))
+                except Exception:
+                    pass
+
+            best_candidate = target_ckpt
+            max_step = current_step
+            for cand in unique_candidates:
+                try:
+                    meta = torch.load(cand, map_location="cpu")
+                    cand_step = meta.get("global_step", meta.get("step", 0))
+                    if cand_step > max_step:
+                        max_step = cand_step
+                        best_candidate = cand
+                except Exception:
+                    pass
+
+            if best_candidate is not None and (target_ckpt is None or max_step > current_step):
+                target_ckpt = best_candidate
+                print(f"Auto-selected checkpoint with highest progress: {target_ckpt} (Step: {max_step})")
 
     # Kaggle auto-discovery: check /kaggle/input for previous checkpoint runs attached as inputs
     if target_ckpt is None and Path("/kaggle/input").exists():
