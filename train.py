@@ -83,28 +83,35 @@ if root_override:
 
 
 def resolve_drive_paths(cfg):
+    shortcut_prefix = "/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC"
     shared_prefix = "/content/drive/MyDrive/shared-with-me/ForensicFusion"
     direct_prefix = "/content/drive/MyDrive/ForensicFusion"
 
-    target_prefix = None
     replacement_prefix = None
+    target_prefixes = []
 
-    if Path(direct_prefix).exists() and not Path(shared_prefix).exists():
-        target_prefix = shared_prefix
+    if Path(shortcut_prefix).exists():
+        replacement_prefix = shortcut_prefix
+        target_prefixes = [shared_prefix, direct_prefix]
+    elif Path(direct_prefix).exists() and not Path(shared_prefix).exists():
         replacement_prefix = direct_prefix
+        target_prefixes = [shared_prefix, shortcut_prefix]
     elif Path(shared_prefix).exists() and not Path(direct_prefix).exists():
-        target_prefix = direct_prefix
         replacement_prefix = shared_prefix
+        target_prefixes = [direct_prefix, shortcut_prefix]
 
-    if target_prefix and replacement_prefix:
-        print(f"[Drive Auto-Detect] Remapping path prefix {target_prefix} -> {replacement_prefix}")
+    if replacement_prefix:
         def _remap(obj):
             if isinstance(obj, dict):
                 return {k: _remap(v) for k, v in obj.items()}
             elif isinstance(obj, list):
                 return [_remap(item) for item in obj]
-            elif isinstance(obj, str) and obj.startswith(target_prefix):
-                return obj.replace(target_prefix, replacement_prefix, 1)
+            elif isinstance(obj, str):
+                for tp in target_prefixes:
+                    if obj.startswith(tp) and tp != replacement_prefix:
+                        new_val = obj.replace(tp, replacement_prefix, 1)
+                        print(f"[Drive Auto-Detect] Remapping path {obj} -> {new_val}")
+                        return new_val
             return obj
         return _remap(cfg)
     return cfg
