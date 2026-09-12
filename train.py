@@ -2315,6 +2315,20 @@ def save_checkpoint(
         temporary_file
     )
 
+    # Safety: preserve existing checkpoint if it has higher progress or create backup
+    if LATEST_CHECKPOINT.exists():
+        try:
+            import shutil
+            disk_meta = torch.load(LATEST_CHECKPOINT, map_location="cpu")
+            disk_step = disk_meta.get("global_step", disk_meta.get("step", 0))
+            if disk_step > global_step:
+                safety_file = LATEST_CHECKPOINT.parent / f"latest_step_{disk_step}.pt"
+                print(f"[Safety Backup] Checkpoint on disk has higher step ({disk_step} > {global_step}). Preserving to: {safety_file}")
+                shutil.copy2(LATEST_CHECKPOINT, safety_file)
+            shutil.copy2(LATEST_CHECKPOINT, str(LATEST_CHECKPOINT) + ".bak")
+        except Exception:
+            pass
+
     os.replace(
         temporary_file,
         LATEST_CHECKPOINT
