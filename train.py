@@ -83,35 +83,28 @@ if root_override:
 
 
 def resolve_drive_paths(cfg):
-    shortcut_prefix = "/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC"
     shared_prefix = "/content/drive/MyDrive/shared-with-me/ForensicFusion"
     direct_prefix = "/content/drive/MyDrive/ForensicFusion"
 
+    target_prefix = None
     replacement_prefix = None
-    target_prefixes = []
 
-    if Path(shortcut_prefix).exists():
-        replacement_prefix = shortcut_prefix
-        target_prefixes = [shared_prefix, direct_prefix]
-    elif Path(direct_prefix).exists() and not Path(shared_prefix).exists():
+    if Path(direct_prefix).exists() and not Path(shared_prefix).exists():
+        target_prefix = shared_prefix
         replacement_prefix = direct_prefix
-        target_prefixes = [shared_prefix, shortcut_prefix]
     elif Path(shared_prefix).exists() and not Path(direct_prefix).exists():
+        target_prefix = direct_prefix
         replacement_prefix = shared_prefix
-        target_prefixes = [direct_prefix, shortcut_prefix]
 
-    if replacement_prefix:
+    if target_prefix and replacement_prefix:
+        print(f"[Drive Auto-Detect] Remapping path prefix {target_prefix} -> {replacement_prefix}")
         def _remap(obj):
             if isinstance(obj, dict):
                 return {k: _remap(v) for k, v in obj.items()}
             elif isinstance(obj, list):
                 return [_remap(item) for item in obj]
-            elif isinstance(obj, str):
-                for tp in target_prefixes:
-                    if obj.startswith(tp) and tp != replacement_prefix:
-                        new_val = obj.replace(tp, replacement_prefix, 1)
-                        print(f"[Drive Auto-Detect] Remapping path {obj} -> {new_val}")
-                        return new_val
+            elif isinstance(obj, str) and obj.startswith(target_prefix):
+                return obj.replace(target_prefix, replacement_prefix, 1)
             return obj
         return _remap(cfg)
     return cfg
@@ -204,10 +197,14 @@ for directory in [
     LOG_FILE.parent,
 ]:
 
-    directory.mkdir(
-        parents=True,
-        exist_ok=True
-    )
+    try:
+        directory.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+    except OSError as err:
+        if not directory.exists():
+            print(f"Warning: Could not create directory {directory} ({err})")
 
 
 # ============================================================
@@ -2424,6 +2421,14 @@ def load_checkpoint(
             if best_candidate is not None and (target_ckpt is None or max_step > current_step):
                 target_ckpt = best_candidate
                 print(f"Auto-selected checkpoint with highest progress: {target_ckpt} (Step: {max_step})")
+                if str(target_ckpt) != str(LATEST_CHECKPOINT):
+                    try:
+                        import shutil
+                        LATEST_CHECKPOINT.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(target_ckpt, LATEST_CHECKPOINT)
+                        print(f"Synchronized checkpoint to: {LATEST_CHECKPOINT}")
+                    except Exception:
+                        pass
 
     # Kaggle auto-discovery: check /kaggle/input for previous checkpoint runs attached as inputs
     if target_ckpt is None and Path("/kaggle/input").exists():

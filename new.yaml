@@ -5,10 +5,10 @@ dataset:
   root: "./dataset/data"
 
   # All metadata, indexes, and splits stored permanently in Shared Google Drive folder
-  index_file: "/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC/data/artifact_index.csv"
-  split_file: "/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC/data/splits.csv"
-  generator_file: "/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC/data/generators.json"
-  report_file: "/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC/data/dataset_report.json"
+  index_file: "/content/drive/MyDrive/shared-with-me/ForensicFusion/data/artifact_index.csv"
+  split_file: "/content/drive/MyDrive/shared-with-me/ForensicFusion/data/splits.csv"
+  generator_file: "/content/drive/MyDrive/shared-with-me/ForensicFusion/data/generators.json"
+  report_file: "/content/drive/MyDrive/shared-with-me/ForensicFusion/data/dataset_report.json"
 
   image_size: 224
 
@@ -52,11 +52,11 @@ augmentation:
   jpeg_augmentation: true
 
 checkpoints:
-  # Permanently saved in your Shared Google Drive folder (never lost across sessions)
-  directory: "/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC/checkpoints"
-  latest: "/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC/checkpoints/latest.pt"
-  best: "/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC/checkpoints/best.pt"
+  # Permanently saved in your Google Drive (never lost across sessions)
+  directory: "/content/drive/MyDrive/shared-with-me/ForensicFusion/checkpoints"
+  latest: "/content/drive/MyDrive/shared-with-me/ForensicFusion/checkpoints/latest.pt"
+  best: "/content/drive/MyDrive/shared-with-me/ForensicFusion/checkpoints/best.pt"
 
 logs:
-  directory: "/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC/logs"
-  training_file: "/content/drive/.shortcut-targets-by-id/1o5TDdubVpYFl_bmpdq1XyTOyBYeP9_RC/logs/training.csv"
+  directory: "/content/drive/MyDrive/shared-with-me/ForensicFusion/logs"
+  training_file: "/content/drive/MyDrive/shared-with-me/ForensicFusion/logs/training.csv"
