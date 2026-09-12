@@ -2343,6 +2343,30 @@ def load_checkpoint(
     if target_ckpt is None and LATEST_CHECKPOINT.exists():
         target_ckpt = LATEST_CHECKPOINT
 
+    # Google Drive auto-discovery: check common Drive locations if LATEST_CHECKPOINT is not found
+    if target_ckpt is None and Path("/content/drive/MyDrive").exists():
+        drive_candidates = []
+        search_dirs = [
+            Path("/content/drive/MyDrive/ForensicFusion/checkpoints"),
+            Path("/content/drive/MyDrive/ForensicFusion"),
+            Path("/content/drive/MyDrive/ForensicFusion_Models"),
+            Path("/content/drive/MyDrive/shared-with-me/ForensicFusion/checkpoints"),
+            Path("/content/drive/MyDrive/shared-with-me/ForensicFusion"),
+            Path("./checkpoints"),
+        ]
+        for s_dir in search_dirs:
+            if s_dir.exists():
+                for pattern in ["latest.pt", "best.pt", "checkpoints/latest.pt", "checkpoints/best.pt"]:
+                    found = list(s_dir.glob(pattern))
+                    drive_candidates.extend(found)
+        unique_candidates = []
+        for c in drive_candidates:
+            if c not in unique_candidates and c.exists() and c.is_file():
+                unique_candidates.append(c)
+        if unique_candidates:
+            target_ckpt = unique_candidates[0]
+            print(f"Auto-detected existing checkpoint from Google Drive: {target_ckpt}")
+
     # Kaggle auto-discovery: check /kaggle/input for previous checkpoint runs attached as inputs
     if target_ckpt is None and Path("/kaggle/input").exists():
         candidates = []
@@ -2356,7 +2380,17 @@ def load_checkpoint(
             print(f"Auto-detected existing checkpoint from Kaggle input: {target_ckpt}")
 
     if target_ckpt is None or not target_ckpt.exists():
-
+        print()
+        print("=" * 80)
+        print("NOTICE: NO EXISTING CHECKPOINT FOUND - STARTING FRESH FROM EPOCH 1")
+        print(f"Expected checkpoint path: {LATEST_CHECKPOINT}")
+        if Path("/content/drive/MyDrive").exists():
+            print("\nIf you shared a Google Drive folder from another account, note that Colab")
+            print("cannot see folders in 'Shared with me' until you add a shortcut:")
+            print("  1. In Google Drive (new account), go to 'Shared with me'")
+            print("  2. Right-click the folder -> 'Organize' -> 'Add shortcut' -> 'My Drive'")
+        print("=" * 80)
+        print()
         return (
             1,
             0,
