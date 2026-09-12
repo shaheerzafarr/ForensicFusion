@@ -1,0 +1,62 @@
+seed: 42
+
+dataset:
+  # Local high-speed disk path where dataset is unzipped
+  root: "./dataset/data"
+
+  # All metadata, indexes, and splits stored permanently in Shared Google Drive folder
+  index_file: "/content/drive/MyDrive/shared-with-me/ForensicFusion/data/artifact_index.csv"
+  split_file: "/content/drive/MyDrive/shared-with-me/ForensicFusion/data/splits.csv"
+  generator_file: "/content/drive/MyDrive/shared-with-me/ForensicFusion/data/generators.json"
+  report_file: "/content/drive/MyDrive/shared-with-me/ForensicFusion/data/dataset_report.json"
+
+  image_size: 224
+
+  train_ratio: 0.80
+  validation_ratio: 0.05
+  test_ratio: 0.15
+
+  use_all_images: true
+
+hardware:
+  # Google Colab T4 (15GB VRAM) optimized settings
+  batch_size: 64
+  num_workers: 2
+  gradient_accumulation_steps: 2
+  device: "cuda"
+
+model:
+  dino:
+    name: "facebook/dinov2-small"
+  convnext:
+    name: "facebook/convnextv2-tiny-1k-224"
+  fusion_dim: 256
+  dropout: 0.30
+
+training:
+  epochs: 20
+  samples_per_epoch: null
+  validation_samples: null
+  freeze_backbones_epochs: 2
+
+  head_learning_rate: 0.0001
+  backbone_learning_rate: 0.000001
+  weight_decay: 0.01
+  gradient_clip: 1.0
+  checkpoint_every_steps: 100
+  generator_loss_weight: 0.15
+
+augmentation:
+  horizontal_flip: true
+  color_jitter: true
+  jpeg_augmentation: true
+
+checkpoints:
+  # Permanently saved in your Shared Google Drive (never lost across sessions)
+  directory: "/content/drive/MyDrive/shared-with-me/ForensicFusion/checkpoints"
+  latest: "/content/drive/MyDrive/shared-with-me/ForensicFusion/checkpoints/latest.pt"
+  best: "/content/drive/MyDrive/shared-with-me/ForensicFusion/checkpoints/best.pt"
+
+logs:
+  directory: "/content/drive/MyDrive/shared-with-me/ForensicFusion/logs"
+  training_file: "/content/drive/MyDrive/shared-with-me/ForensicFusion/logs/training.csv"

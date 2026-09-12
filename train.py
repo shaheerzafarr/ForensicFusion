@@ -82,6 +82,37 @@ if root_override:
     print(f"Dataset root overridden to: {root_override}")
 
 
+def resolve_drive_paths(cfg):
+    shared_prefix = "/content/drive/MyDrive/shared-with-me/ForensicFusion"
+    direct_prefix = "/content/drive/MyDrive/ForensicFusion"
+
+    target_prefix = None
+    replacement_prefix = None
+
+    if Path(direct_prefix).exists() and not Path(shared_prefix).exists():
+        target_prefix = shared_prefix
+        replacement_prefix = direct_prefix
+    elif Path(shared_prefix).exists() and not Path(direct_prefix).exists():
+        target_prefix = direct_prefix
+        replacement_prefix = shared_prefix
+
+    if target_prefix and replacement_prefix:
+        print(f"[Drive Auto-Detect] Remapping path prefix {target_prefix} -> {replacement_prefix}")
+        def _remap(obj):
+            if isinstance(obj, dict):
+                return {k: _remap(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [_remap(item) for item in obj]
+            elif isinstance(obj, str) and obj.startswith(target_prefix):
+                return obj.replace(target_prefix, replacement_prefix, 1)
+            return obj
+        return _remap(cfg)
+    return cfg
+
+
+CFG = resolve_drive_paths(CFG)
+
+
 SEED = CFG["seed"]
 
 
