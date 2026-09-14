@@ -1,8 +1,9 @@
 seed: 42
 
 dataset:
-  # Mounted path for awsaf49/artifact-dataset on Kaggle
-  root: "/kaggle/input/datasets/awsaf49/artifact-dataset"
+  # Mounted path on Kaggle — Kaggle mounts at /kaggle/input/<dataset-slug>
+  # If you add dataset "awsaf49/artifact-dataset", it mounts at:
+  root: "/kaggle/input/artifact-dataset"
 
   index_file: "/kaggle/working/data/artifact_index.csv"
   split_file: "/kaggle/working/data/splits.csv"
@@ -18,12 +19,10 @@ dataset:
   use_all_images: true
 
 hardware:
-  # Kaggle NVIDIA T4 (16GB VRAM) optimized settings
-  batch_size: 32
+  # Kaggle T4 GPU (16GB VRAM) — same settings as Colab T4
+  batch_size: 64
   num_workers: 2
-  gradient_accumulation_steps: 4
-
-  # Use CUDA GPU on Kaggle
+  gradient_accumulation_steps: 2
   device: "cuda"
 
 model:
