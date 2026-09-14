@@ -1,9 +1,8 @@
 seed: 42
 
 dataset:
-  # Mounted path on Kaggle — Kaggle mounts at /kaggle/input/<dataset-slug>
-  # If you add dataset "awsaf49/artifact-dataset", it mounts at:
-  root: "/kaggle/input/artifact-dataset"
+  # Kaggle mounts at /kaggle/input/datasets/<user>/<dataset-name>
+  root: "/kaggle/input/datasets/awsaf49/artifact-dataset"
 
   index_file: "/kaggle/working/data/artifact_index.csv"
   split_file: "/kaggle/working/data/splits.csv"
