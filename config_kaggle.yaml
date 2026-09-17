@@ -1,62 +1,84 @@
 seed: 42
 
 dataset:
-  # Kaggle mounts at /kaggle/input/datasets/<user>/<dataset-name>
+  # Kept from the original Kaggle setup. The loader also detects
+  # /kaggle/input/artifact-dataset when Kaggle uses its short mount path.
   root: "/kaggle/input/datasets/awsaf49/artifact-dataset"
-
-  index_file: "/kaggle/working/data/artifact_index.csv"
-  split_file: "/kaggle/working/data/splits.csv"
-  generator_file: "/kaggle/working/data/generators.json"
-  report_file: "/kaggle/working/data/dataset_report.json"
+  metadata_pattern: "**/metadata.csv"
+  output_directory: "/kaggle/working/forensic_fusion"
+  manifest_file: "/kaggle/working/forensic_fusion/manifest.csv"
+  report_file: "/kaggle/working/forensic_fusion/dataset_report.json"
+  source_map_file: "/kaggle/working/forensic_fusion/source_map.json"
 
   image_size: 224
+  # The 200k training set is separate from validation and testing.
+  # Counts are the closest whole-image equivalent of a 70/20/10 split.
+  samples:
+    train:
+      real: 100000
+      fake: 100000
+    validation:
+      real: 28571
+      fake: 28571
+    test:
+      real: 14286
+      fake: 14286
 
-  train_ratio: 0.80
-  validation_ratio: 0.05
-  test_ratio: 0.15
+  # A larger balanced candidate pool is hashed first, then reduced to the exact
+  # configured counts. This removes byte-identical copies before any split.
+  deduplicate_by_content: true
+  candidate_multiplier: 1.20
+  hash_workers: 8
+  verify_selected_images: false
 
-  use_all_images: true
-
-hardware:
-  # Kaggle T4 GPU (16GB VRAM) — same settings as Colab T4
-  batch_size: 64
-  num_workers: 2
-  gradient_accumulation_steps: 2
-  device: "cuda"
+loader:
+  batch_size: 48
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
 
 model:
-  dino:
-    name: "facebook/dinov2-small"
-
-  convnext:
-    name: "facebook/convnextv2-tiny-1k-224"
-
-  fusion_dim: 256
-  dropout: 0.30
+  backbone: "convnext_tiny"
+  pretrained: true
+  residual_features: 128
+  fusion_features: 512
+  dropout: 0.25
 
 training:
-  epochs: 20
-  samples_per_epoch: null
-  validation_samples: null
-  freeze_backbones_epochs: 2
-
-  head_learning_rate: 0.0001
-  backbone_learning_rate: 0.000001
-  weight_decay: 0.01
-  gradient_clip: 1.0
-  checkpoint_every_steps: 100
-  generator_loss_weight: 0.15
+  epochs: 12
+  freeze_backbone_epochs: 1
+  backbone_learning_rate: 0.00002
+  head_learning_rate: 0.0002
+  weight_decay: 0.02
+  label_smoothing: 0.02
+  generator_loss_weight: 0.10
+  gradient_accumulation_steps: 1
+  gradient_clip_norm: 1.0
+  warmup_epochs: 1
+  early_stopping_patience: 3
+  minimum_improvement: 0.0005
+  selection_metric: "pr_auc"
+  mixed_precision: true
 
 augmentation:
-  horizontal_flip: true
-  color_jitter: true
-  jpeg_augmentation: true
+  horizontal_flip_probability: 0.5
+  color_jitter_probability: 0.25
+  jpeg_probability: 0.35
+  jpeg_quality_min: 60
+  jpeg_quality_max: 100
+  blur_probability: 0.10
+
+evaluation:
+  threshold_metric: "f1"
+  test_time_horizontal_flip: true
 
 checkpoints:
-  directory: "/kaggle/working/checkpoints"
-  latest: "/kaggle/working/checkpoints/latest.pt"
-  best: "/kaggle/working/checkpoints/best.pt"
+  directory: "/kaggle/working/forensic_fusion/checkpoints"
+  latest: "/kaggle/working/forensic_fusion/checkpoints/latest.pt"
+  best: "/kaggle/working/forensic_fusion/checkpoints/best.pt"
 
 logs:
-  directory: "/kaggle/working/logs"
-  training_file: "/kaggle/working/logs/training.csv"
+  directory: "/kaggle/working/forensic_fusion/logs"
+  history_file: "/kaggle/working/forensic_fusion/logs/history.csv"
+  test_metrics_file: "/kaggle/working/forensic_fusion/logs/test_metrics.json"
+  test_predictions_file: "/kaggle/working/forensic_fusion/logs/test_predictions.csv"

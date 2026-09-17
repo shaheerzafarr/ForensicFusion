@@ -1,33 +1,13 @@
-# Environments
-venv/
-.venv/
-env/
-
-# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-*$py.class
-
-# Large Datasets & Generated Index Files (>100MB)
-dataset/
-data/*.csv
-data/splits.csv
-data/artifact_index.csv
-!data/generators.json
-!data/dataset_report.json
-
-# Model Checkpoints & Weights (>100MB)
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+outputs/
+/forensic_fusion/
 checkpoints/*.pt
-checkpoints/*.tmp
-!checkpoints/.gitkeep
-
-# Training Logs
-logs/*.csv
-!logs/.gitkeep
-
-# Operating System & IDEs
-.vscode/
-.idea/
-*.DS_Store
-Thumbs.db
-*.log
+data/*.csv
+data/*.json

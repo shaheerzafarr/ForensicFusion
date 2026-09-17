@@ -1,42 +1,70 @@
-# ForensicFusion: Multi-Expert AI-Generated Image Forensic Detector
+# ForensicFusion
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/shaheerzafarr/ForensicFusion/blob/main/train_colab.ipynb)
+This is a clean Kaggle-first pipeline for binary real-vs-generated image detection.
+It selects exactly **100,000 real** and **100,000 fake** images for training, then
+selects additional images for validation and testing. Fake selection is balanced
+across every generator that has fake examples, and content duplicates are removed
+before deterministic **70% train / 20% validation / 10% test** allocation.
 
-**ForensicFusion** is an image-forensics framework designed to detect AI-generated, synthetic, and manipulated images across **33 generator architectures** by combining pretrained vision foundation models (**DINOv2**, **ConvNeXt V2**) with dedicated **pixel-level high-pass residual** and **2D frequency-domain (FFT)** forensic streams fused via cross-attention.
+Exact split sizes:
 
----
+| Split | Real | Fake | Total |
+|---|---:|---:|---:|
+| Train | 100,000 | 100,000 | 200,000 |
+| Validation | 28,571 | 28,571 | 57,142 |
+| Test | 14,286 | 14,286 | 28,572 |
+| **Total** | **142,857** | **142,857** | **285,714** |
 
-## ⚡ Quick Start on Google Colab (Recommended)
+## Kaggle usage
 
-Click the badge above or open [`train_colab.ipynb`](./train_colab.ipynb) directly in Google Colab:
-1. Set runtime to **T4 GPU** (*Runtime* > *Change runtime type* > *T4 GPU*).
-2. Upload your `kaggle.json` API token to download the dataset in ~2 minutes.
-3. Run the notebook to train with Automatic Mixed Precision (AMP) on NVIDIA Tensor Cores.
+Add the Artifact dataset and this repository to a Kaggle notebook, enable a GPU,
+then run:
 
----
-
-## 💻 Local Execution
-
-### 1. Setup Environment
-```powershell
-python -m venv venv
-.\venv\Scripts\activate
+```bash
 pip install -r requirements.txt
+python prepare_data.py --config config_kaggle.yaml
+python train.py --config config_kaggle.yaml
+python evaluate.py --config config_kaggle.yaml
 ```
 
-### 2. Configure Settings
-Adjust hyperparameters, batch size, and dataset paths in [`config.yaml`](./config.yaml).
+`train.py` never evaluates on the test split. It chooses the checkpoint and decision
+threshold using validation data only. `evaluate.py` loads that frozen checkpoint and
+runs the final test once.
 
-### 3. Run Training
-```powershell
-python train.py
+The configured dataset path is retained. The loader also detects Kaggle's usual
+`/kaggle/input/artifact-dataset` mount automatically.
+
+## Design
+
+- Deterministic, capped balanced sampling prevents StyleGAN2 or another large source
+  from dominating the fake class.
+- Byte-level hashes are computed before splitting, so identical files cannot leak
+  between training, validation, and test.
+- Every sufficiently populated generator is represented in every split.
+- A pretrained ConvNeXt-Tiny semantic stream is fused with a fixed high-pass residual
+  stream that targets generation artifacts.
+- Mild JPEG, resize, color, blur, and flip augmentation is applied equally to both
+  classes to improve robustness without changing class balance.
+- Checkpoint selection uses validation PR-AUC. Precision, recall, F1, ROC-AUC,
+  PR-AUC, confusion counts, and accuracy are reported.
+
+No pipeline can promise a particular accuracy on unseen data. This setup is designed
+to produce honest, reproducible metrics and strong within-generator performance;
+real-world performance should also be checked on a separate, externally sourced set.
+
+## Commands
+
+Rebuild the manifest:
+
+```bash
+python prepare_data.py --config config_kaggle.yaml --force
 ```
 
----
+Resume training from `latest.pt`:
 
-## 🧠 Architecture Overview
-- **Spatial Semantic Stream**: DINOv2 Vision Transformer (`facebook/dinov2-small`)
-- **Convolutional Stream**: ConvNeXt V2 (`facebook/convnextv2-tiny-1k-224`)
-- **High-Pass Residual Stream**: Gaussian-filtered high-pass artifact CNN
-- **Frequency Domain Stream**: 2D Fast Fourier Transform (FFT) log-magnitude CNN
-- **Fusion**: Multi-head Cross-Attention token fusion with binary forensic and auxiliary generator heads
+```bash
+python train.py --config config_kaggle.yaml --resume
+```
+
+Use `--no-pretrained` only if Kaggle internet is disabled and pretrained weights are
+not already cached. Accuracy will usually be lower.
