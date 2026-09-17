@@ -32,7 +32,7 @@ dataset:
   verify_selected_images: false
 
 loader:
-  batch_size: 48
+  batch_size: 64
   num_workers: 4
   pin_memory: true
   persistent_workers: true
